@@ -14,7 +14,7 @@ terraform {
   required_providers {
     datacrunch = {
       source  = "squat/datacrunch"
-      version = "0.0.1"
+      version = "0.0.2"
     }
   }
 }
@@ -53,6 +53,16 @@ TF_REATTACH_PROVIDERS=... terraform apply
 <!-- Start Available Resources and Operations [operations] -->
 ## Available Resources and Operations
 
+### Resources
+
+- `datacrunch_instance` - Manage DataCrunch GPU instances
+- `datacrunch_ssh_key` - Manage SSH keys for instance access
+
+### Data Sources
+
+- `datacrunch_instance_types` - Query available instance types with CPU, GPU, memory, and pricing information
+- `datacrunch_images` - Query available OS images
+- `datacrunch_locations` - Query available datacenter locations
 
 <!-- End Available Resources and Operations [operations] -->
 
