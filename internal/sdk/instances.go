@@ -116,6 +116,11 @@ func (s *Instances) DeployInstance(ctx context.Context, request shared.DeployIns
 		case utils.MatchContentType(contentType, `application/json`):
 			out := string(rawBody)
 			res.InstanceID = &out
+		case utils.MatchContentType(contentType, `text/html`):
+			// DataCrunch API returns text/html for 202 responses
+			// The body contains the instance ID as plain text
+			out := string(rawBody)
+			res.InstanceID = &out
 		default:
 			return nil, sdkerrors.NewSDKError(fmt.Sprintf("unknown content-type received: %s", contentType), httpRes.StatusCode, string(rawBody), httpRes)
 		}
