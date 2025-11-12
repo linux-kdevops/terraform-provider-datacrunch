@@ -82,11 +82,18 @@ func (p *DatacrunchProvider) Configure(ctx context.Context, req provider.Configu
 }
 
 func (p *DatacrunchProvider) Resources(ctx context.Context) []func() resource.Resource {
-	return []func() resource.Resource{}
+	return []func() resource.Resource{
+		NewInstanceResource,
+		NewSSHKeyResource,
+	}
 }
 
 func (p *DatacrunchProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+	return []func() datasource.DataSource{
+		NewInstanceTypesDataSource,
+		NewImagesDataSource,
+		NewLocationsDataSource,
+	}
 }
 
 func New(version string) func() provider.Provider {
