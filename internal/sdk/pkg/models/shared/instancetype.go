@@ -4,7 +4,6 @@ package shared
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 // InstanceType - the instance type
@@ -50,65 +49,7 @@ func (e *InstanceType) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
-	switch v {
-	case "8V100.48M":
-		fallthrough
-	case "8V100.48V":
-		fallthrough
-	case "4V100.20V":
-		fallthrough
-	case "2V100.10V":
-		fallthrough
-	case "1V100.6V":
-		fallthrough
-	case "8RTX6000ADA.80V":
-		fallthrough
-	case "4RTX6000ADA.40V":
-		fallthrough
-	case "2RTX6000ADA.20V":
-		fallthrough
-	case "1RTX6000ADA.10V":
-		fallthrough
-	case "8A6000.80V":
-		fallthrough
-	case "4A6000.40V":
-		fallthrough
-	case "2A6000.20V":
-		fallthrough
-	case "1A6000.10V":
-		fallthrough
-	case "8A100.176V":
-		fallthrough
-	case "4A100.88V":
-		fallthrough
-	case "2A100.44V":
-		fallthrough
-	case "1A100.22V":
-		fallthrough
-	case "8A100.40S.176V":
-		fallthrough
-	case "4A100.40S.88V":
-		fallthrough
-	case "2A100.40S.44V":
-		fallthrough
-	case "1A100.40S.22V":
-		fallthrough
-	case "CPU.4V.16G":
-		fallthrough
-	case "CPU.8V.32G":
-		fallthrough
-	case "CPU.16V.64G":
-		fallthrough
-	case "CPU.32V.128G":
-		fallthrough
-	case "CPU.64V.256G":
-		fallthrough
-	case "CPU.96V.384G":
-		fallthrough
-	case "CPU.120V.480G":
-		*e = InstanceType(v)
-		return nil
-	default:
-		return fmt.Errorf("invalid value for InstanceType: %v", v)
-	}
+	// Accept any instance type - DataCrunch adds new instance types frequently
+	*e = InstanceType(v)
+	return nil
 }
