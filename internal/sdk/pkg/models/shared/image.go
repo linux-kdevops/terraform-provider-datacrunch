@@ -4,7 +4,6 @@ package shared
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 // Image - the image type (operating system)
@@ -26,17 +25,7 @@ func (e *Image) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
-	switch v {
-	case "ubuntu-18.04":
-		fallthrough
-	case "ubuntu-20.04":
-		fallthrough
-	case "fastai":
-		fallthrough
-	case "ubuntu-20.04-cuda-11.2":
-		*e = Image(v)
-		return nil
-	default:
-		return fmt.Errorf("invalid value for Image: %v", v)
-	}
+	// Accept any image value - DataCrunch adds new images frequently
+	*e = Image(v)
+	return nil
 }
