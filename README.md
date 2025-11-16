@@ -2,7 +2,25 @@
 
 The Terraform provider for DataCrunch enables the declarative management of resources in [DataCrunch](https://datacrunch.io).
 
-[![Build Status](https://github.com/squat/terraform-provider-datacrunch/workflows/CI/badge.svg)](https://github.com/squat/terraform-provider-datacrunch/actions?query=workflow%3ACI)
+[![Build Status](https://github.com/linux-kdevops/terraform-provider-datacrunch/workflows/CI/badge.svg)](https://github.com/linux-kdevops/terraform-provider-datacrunch/actions?query=workflow%3ACI)
+
+## Fork Information
+
+This is a fork of [squat/terraform-provider-datacrunch](https://github.com/squat/terraform-provider-datacrunch) maintained by the [kdevops project](https://github.com/linux-kdevops/kdevops) for Linux kernel development and testing workflows.
+
+**Key enhancements in this fork:**
+
+- **Robust instance lifecycle management**: Added async waiters for instance creation and deletion that poll until operations complete, preventing Terraform from proceeding before resources are fully provisioned or destroyed
+- **Location code handling**: Fixed inconsistent result errors when DataCrunch provisions instances in different regions than requested
+- **Speakeasy-free development**: Removed Speakeasy dependency from default build workflow - SDK generation only needed when API spec changes
+- **Production-ready**: Battle-tested with kdevops GPU workflows requiring reliable provisioning of H100, A100, and other high-demand GPU instances
+
+**Use cases:**
+- Linux kernel development and testing on GPU instances
+- Machine learning research requiring automated GPU infrastructure
+- Workflows needing reliable provisioning despite capacity constraints
+
+**Integration with kdevops**: This provider powers kdevops' region-aware tier-based GPU selection, automatically finding available capacity across all DataCrunch regions and falling back through GPU tiers to maximize provisioning success rates.
 
 <!-- Start SDK Installation [installation] -->
 ## SDK Installation
@@ -13,8 +31,8 @@ To install this provider, copy and paste this code into your Terraform configura
 terraform {
   required_providers {
     datacrunch = {
-      source  = "squat/datacrunch"
-      version = "0.0.2"
+      source  = "linux-kdevops/datacrunch"
+      version = "0.0.3"
     }
   }
 }
@@ -23,6 +41,8 @@ provider "datacrunch" {
   # Configuration options
 }
 ```
+
+**Note**: This provider will be published to the Terraform Registry as `linux-kdevops/datacrunch`. Until then, you can use the local development installation method below.
 <!-- End SDK Installation [installation] -->
 
 
@@ -92,7 +112,7 @@ Terraform searches for the `.terraformrc` file in your home directory and applie
 provider_installation {
 
   dev_overrides {
-      "squat/datacrunch" = "<PATH>"
+      "linux-kdevops/datacrunch" = "/home/your-user/.terraform.d/plugins/registry.terraform.io/linux-kdevops/datacrunch/0.0.3/linux_amd64"
   }
 
   # For all other providers, install them directly from their origin provider
@@ -102,7 +122,7 @@ provider_installation {
 }
 ```
 
-Your `<PATH>` may vary depending on how your Go environment variables are configured. Execute `go env GOBIN` to set it, then set the `<PATH>` to the value returned. If nothing is returned, set it to the default location, `$HOME/go/bin`.
+The `make install` target installs the provider to `~/.terraform.d/plugins/registry.terraform.io/linux-kdevops/datacrunch/0.0.3/linux_amd64/` by default.
 
 ### Generation
 
