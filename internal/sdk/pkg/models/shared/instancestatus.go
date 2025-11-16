@@ -16,6 +16,8 @@ const (
 	InstanceStatusStartingHibernation InstanceStatus = "starting hibernation"
 	InstanceStatusHibernating         InstanceStatus = "hibernating"
 	InstanceStatusRestoring           InstanceStatus = "restoring"
+	InstanceStatusOrdered             InstanceStatus = "ordered"
+	InstanceStatusNoCapacity          InstanceStatus = "no_capacity"
 	InstanceStatusError               InstanceStatus = "error"
 )
 
@@ -40,6 +42,10 @@ func (e *InstanceStatus) UnmarshalJSON(data []byte) error {
 	case "hibernating":
 		fallthrough
 	case "restoring":
+		fallthrough
+	case "ordered":
+		fallthrough
+	case "no_capacity":
 		fallthrough
 	case "error":
 		*e = InstanceStatus(v)
