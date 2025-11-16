@@ -4,7 +4,9 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"github.com/squat/terraform-provider-datacrunch/internal/sdk"
+	"github.com/squat/terraform-provider-datacrunch/internal/sdk/pkg/models/operations"
 	"github.com/squat/terraform-provider-datacrunch/internal/sdk/pkg/models/shared"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -25,8 +27,10 @@ type DatacrunchProvider struct {
 
 // DatacrunchProviderModel describes the provider data model.
 type DatacrunchProviderModel struct {
-	ServerURL types.String `tfsdk:"server_url"`
-	Bearer    types.String `tfsdk:"bearer"`
+	ServerURL    types.String `tfsdk:"server_url"`
+	Bearer       types.String `tfsdk:"bearer"`
+	ClientID     types.String `tfsdk:"client_id"`
+	ClientSecret types.String `tfsdk:"client_secret"`
 }
 
 func (p *DatacrunchProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -44,8 +48,18 @@ func (p *DatacrunchProvider) Schema(ctx context.Context, req provider.SchemaRequ
 				Required:            false,
 			},
 			"bearer": schema.StringAttribute{
-				Optional:  true,
-				Sensitive: true,
+				MarkdownDescription: "OAuth2 access token (use this OR client_id/client_secret)",
+				Optional:            true,
+				Sensitive:           true,
+			},
+			"client_id": schema.StringAttribute{
+				MarkdownDescription: "OAuth2 client ID (use with client_secret)",
+				Optional:            true,
+			},
+			"client_secret": schema.StringAttribute{
+				MarkdownDescription: "OAuth2 client secret (use with client_id)",
+				Optional:            true,
+				Sensitive:           true,
 			},
 		},
 	}
@@ -67,6 +81,50 @@ func (p *DatacrunchProvider) Configure(ctx context.Context, req provider.Configu
 	}
 
 	bearer := data.Bearer.ValueString()
+	clientID := data.ClientID.ValueString()
+	clientSecret := data.ClientSecret.ValueString()
+
+	// If bearer token not provided, try OAuth2 with client credentials
+	if bearer == "" && clientID != "" && clientSecret != "" {
+		// Create temporary client for OAuth2 authentication
+		tempClient := sdk.New(sdk.WithServerURL(ServerURL))
+
+		// Get access token using client credentials
+		tokenReq := &operations.GetAccessTokenRequestBody{}
+		tokenReq.One = &operations.One{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			GrantType:    operations.GrantTypeClientCredentials.ToPointer(),
+		}
+
+		tokenResp, err := tempClient.Authentication.GetAccessToken(ctx, tokenReq)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"OAuth2 Authentication Failed",
+				"Could not obtain access token: "+err.Error(),
+			)
+			return
+		}
+
+		if tokenResp.StatusCode != 200 || tokenResp.TwoHundredApplicationJSONObject == nil {
+			resp.Diagnostics.AddError(
+				"OAuth2 Authentication Failed",
+				fmt.Sprintf("API returned status %d", tokenResp.StatusCode),
+			)
+			return
+		}
+
+		bearer = tokenResp.TwoHundredApplicationJSONObject.AccessToken
+	}
+
+	if bearer == "" {
+		resp.Diagnostics.AddError(
+			"Missing Credentials",
+			"Either bearer token or client_id+client_secret must be provided",
+		)
+		return
+	}
+
 	security := shared.Security{
 		Bearer: bearer,
 	}

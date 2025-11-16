@@ -30,6 +30,22 @@ provider "datacrunch" {
 <!-- Start SDK Example Usage [usage] -->
 ## SDK Example Usage
 
+### Building the provider locally
+
+For day-to-day development when the SDK is already generated (checked into git), you can build and install the provider without the Speakeasy dependency:
+
+```sh
+make install
+```
+
+This compiles the existing Go code and installs the binary to `~/.terraform.d/plugins/` for use with dev_overrides in `~/.terraformrc`.
+
+**Note**: You only need `make generate` (which requires Speakeasy) when:
+- The DataCrunch API OpenAPI spec has changed
+- You need to regenerate the SDK to pick up new API features
+
+For normal development (modifying provider logic, fixing bugs), just use `make install`.
+
 ### Testing the provider locally
 
 Should you want to validate a change locally, the `--debug` flag allows you to execute the provider against a terraform instance locally.

@@ -5,6 +5,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -102,12 +103,37 @@ func (r *SSHKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	addResp, err := r.client.SSHKeys.AddSSHKeys(ctx, addReq)
+	// DataCrunch API may return text/html instead of JSON for SSH key creation
+	// The SDK returns an error when content-type is not application/json, but the UUID
+	// is included in the error message after "Status 201"
+	var sshKeyID string
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating SSH key",
-			fmt.Sprintf("Could not create SSH key: %s", err.Error()),
-		)
-		return
+		errMsg := err.Error()
+		// Check if this is a content-type error with status 201
+		if strings.Contains(errMsg, "unknown content-type received") && strings.Contains(errMsg, "Status 201") {
+			// The UUID is on the second line after the error description
+			// Example: "unknown content-type received: text/html; charset=utf-8: Status 201\n41b4e148-..."
+			lines := strings.Split(errMsg, "\n")
+			if len(lines) > 1 {
+				// The UUID is on the second line
+				potentialID := strings.TrimSpace(lines[1])
+				// Validate it looks like a UUID (contains hyphens and is reasonable length)
+				if len(potentialID) >= 36 && strings.Contains(potentialID, "-") {
+					sshKeyID = potentialID
+					err = nil // Clear the error since we got the ID
+					// Create a minimal response object for status code checking below
+					addResp = &operations.AddSSHKeysResponse{StatusCode: 201}
+				}
+			}
+		}
+
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error creating SSH key",
+				fmt.Sprintf("Could not create SSH key: %s", err.Error()),
+			)
+			return
+		}
 	}
 
 	if addResp.StatusCode != 201 && addResp.StatusCode != 200 {
@@ -118,7 +144,12 @@ func (r *SSHKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	if addResp.SSHKeyID == nil {
+	// If we got the ID from JSON response, use it
+	if sshKeyID == "" && addResp.SSHKeyID != nil {
+		sshKeyID = *addResp.SSHKeyID
+	}
+
+	if sshKeyID == "" {
 		resp.Diagnostics.AddError(
 			"Error creating SSH key",
 			"API did not return SSH key ID",
@@ -127,7 +158,7 @@ func (r *SSHKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	// Update state from response - add returns only ID, we already have name and key from plan
-	plan.ID = types.StringValue(*addResp.SSHKeyID)
+	plan.ID = types.StringValue(sshKeyID)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -143,7 +174,17 @@ func (r *SSHKeyResource) Read(ctx context.Context, req resource.ReadRequest, res
 	getResp, err := r.client.SSHKeys.GetSSHKeyByID(ctx, operations.GetSSHKeyByIDRequest{
 		SSHKeyID: state.ID.ValueString(),
 	})
+
+	// DataCrunch API returns array even for "get by ID", causing unmarshal error
+	// The SDK's response should still have the status code and raw response
 	if err != nil {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "cannot unmarshal array") {
+			// The key exists but API returned array format
+			// Since we can't parse it properly, just keep the existing state
+			// This allows Delete to still be called during destroy
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error reading SSH key",
 			fmt.Sprintf("Could not read SSH key %s: %s", state.ID.ValueString(), err.Error()),

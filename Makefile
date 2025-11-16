@@ -1,5 +1,5 @@
 export GO111MODULE=on
-.PHONY: clean deps fmt generate lint test unit
+.PHONY: clean deps fmt generate lint test unit install
 
 ARCH ?= amd64
 OS ?= linux
@@ -35,6 +35,9 @@ SPEAKEASY_BINARY := bin/speakeasy
 GO_VERSION ?= 1.21.3
 BUILD_IMAGE ?= golang:$(GO_VERSION)-alpine
 
+# Default target - build and install without Speakeasy
+.DEFAULT_GOAL := install
+
 build: $(BINS)
 
 build-%:
@@ -57,7 +60,7 @@ ifeq ($(CONTAINERIZE_BUILD), true)
 	BUILD_SUFIX := '
 endif
 
-$(BINS): $(GO_FILES) go.mod | files.gen
+$(BINS): $(GO_FILES) go.mod
 	@mkdir -p bin/$(ARCH)
 	@echo "building: $@"
 	@$(BUILD_PREFIX) \
@@ -128,5 +131,13 @@ $(DOCS) &: $(SPEAKEASY_FILES) | files.gen
 	sed -i 's/datacrunch Provider/DataCrunch Provider/' docs/index.md
 
 generate: $(GENERATED)
+
+# Build provider binary without SDK regeneration (skips Speakeasy dependency)
+# Use this for day-to-day development when SDK is already generated
+install:
+	@echo "Building and installing provider binary to ~/.terraform.d/plugins..."
+	@mkdir -p ~/.terraform.d/plugins/registry.terraform.io/squat/datacrunch/0.0.2/linux_amd64
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(LD_FLAGS) -o ~/.terraform.d/plugins/registry.terraform.io/squat/datacrunch/0.0.2/linux_amd64/terraform-provider-datacrunch .
+	@echo "Provider installed successfully"
 
 -include datacrunch.mk

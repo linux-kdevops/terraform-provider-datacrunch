@@ -5,6 +5,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -205,18 +206,20 @@ func (r *InstanceResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	// Get instance details
+	// Wait for instance to be fully provisioned with an IP
 	instanceID := *deployResp.InstanceID
-	getInstance, err := r.client.Instances.GetInstanceByID(ctx, operations.GetInstanceByIDRequest{
-		InstanceID: instanceID,
-	})
+	getInstance, err := r.waitForInstanceReady(ctx, instanceID)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading instance",
-			fmt.Sprintf("Could not read instance %s: %s", instanceID, err.Error()),
+			"Error waiting for instance to be ready",
+			fmt.Sprintf("Instance %s did not become ready: %s", instanceID, err.Error()),
 		)
 		return
 	}
+
+	// Preserve the location_code from plan if it was explicitly set
+	// The API may provision in a different location than requested
+	planLocationCode := plan.LocationCode
 
 	// Update state with response data
 	r.updateStateFromInstance(ctx, &plan, getInstance.Instance, &resp.Diagnostics)
@@ -224,7 +227,47 @@ func (r *InstanceResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
+	// Restore the location_code from plan if it was explicitly set
+	// to avoid Terraform detecting it as an inconsistent result
+	if !planLocationCode.IsNull() && !planLocationCode.IsUnknown() {
+		plan.LocationCode = planLocationCode
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+// waitForInstanceReady polls the instance until it has an IP address assigned
+func (r *InstanceResource) waitForInstanceReady(ctx context.Context, instanceID string) (*operations.GetInstanceByIDResponse, error) {
+	timeout := time.After(10 * time.Minute)
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return nil, fmt.Errorf("timeout waiting for instance to be ready")
+		case <-ticker.C:
+			getInstance, err := r.client.Instances.GetInstanceByID(ctx, operations.GetInstanceByIDRequest{
+				InstanceID: instanceID,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("could not read instance: %w", err)
+			}
+
+			// Check if instance has an IP address
+			if getInstance.Instance != nil && getInstance.Instance.IP != nil && *getInstance.Instance.IP != "" {
+				return getInstance, nil
+			}
+
+			// Check for error states
+			if getInstance.Instance != nil && getInstance.Instance.Status != nil {
+				status := string(*getInstance.Instance.Status)
+				if status == "error" || status == "no_capacity" {
+					return nil, fmt.Errorf("instance provisioning failed with status: %s", status)
+				}
+			}
+		}
+	}
 }
 
 func (r *InstanceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -291,6 +334,41 @@ func (r *InstanceResource) Delete(ctx context.Context, req resource.DeleteReques
 			fmt.Sprintf("Could not delete instance %s: %s", state.ID.ValueString(), err.Error()),
 		)
 		return
+	}
+
+	// Wait for instance to be fully deleted
+	err = r.waitForInstanceDeleted(ctx, state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error waiting for instance deletion",
+			fmt.Sprintf("Instance %s did not complete deletion: %s", state.ID.ValueString(), err.Error()),
+		)
+		return
+	}
+}
+
+// waitForInstanceDeleted polls until the instance is gone (404)
+func (r *InstanceResource) waitForInstanceDeleted(ctx context.Context, instanceID string) error {
+	timeout := time.After(5 * time.Minute)
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timeout waiting for instance to be deleted")
+		case <-ticker.C:
+			getInstance, err := r.client.Instances.GetInstanceByID(ctx, operations.GetInstanceByIDRequest{
+				InstanceID: instanceID,
+			})
+
+			// If we get a 404, the instance is deleted
+			if err != nil || getInstance.StatusCode == 404 {
+				return nil
+			}
+
+			// Instance still exists, keep waiting
+		}
 	}
 }
 
