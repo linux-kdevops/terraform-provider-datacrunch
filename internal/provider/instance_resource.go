@@ -35,18 +35,19 @@ type InstanceResource struct {
 }
 
 type InstanceResourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	Hostname         types.String `tfsdk:"hostname"`
-	Description      types.String `tfsdk:"description"`
-	Image            types.String `tfsdk:"image"`
-	InstanceType     types.String `tfsdk:"instance_type"`
-	LocationCode     types.String `tfsdk:"location_code"`
-	SSHKeyIDs        types.List   `tfsdk:"ssh_key_ids"`
-	IP               types.String `tfsdk:"ip"`
-	Status           types.String `tfsdk:"status"`
-	CreatedAt        types.String `tfsdk:"created_at"`
+	ID               types.String  `tfsdk:"id"`
+	Hostname         types.String  `tfsdk:"hostname"`
+	Description      types.String  `tfsdk:"description"`
+	Image            types.String  `tfsdk:"image"`
+	InstanceType     types.String  `tfsdk:"instance_type"`
+	LocationCode     types.String  `tfsdk:"location_code"`
+	SSHKeyIDs        types.List    `tfsdk:"ssh_key_ids"`
+	IP               types.String  `tfsdk:"ip"`
+	Status           types.String  `tfsdk:"status"`
+	CreatedAt        types.String  `tfsdk:"created_at"`
 	PricePerHour     types.Float64 `tfsdk:"price_per_hour"`
-	StartupScriptID  types.String `tfsdk:"startup_script_id"`
+	StartupScriptID  types.String  `tfsdk:"startup_script_id"`
+	OsVolumeID       types.String  `tfsdk:"os_volume_id"`
 }
 
 func (r *InstanceResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -122,6 +123,10 @@ func (r *InstanceResource) Schema(ctx context.Context, req resource.SchemaReques
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+			},
+			"os_volume_id": schema.StringAttribute{
+				MarkdownDescription: "OS volume ID for the instance",
+				Computed:            true,
 			},
 		},
 	}
@@ -409,6 +414,9 @@ func (r *InstanceResource) updateStateFromInstance(ctx context.Context, state *I
 	}
 	if instance.StartupScriptID != nil {
 		state.StartupScriptID = types.StringValue(*instance.StartupScriptID)
+	}
+	if instance.OsVolumeID != nil {
+		state.OsVolumeID = types.StringValue(*instance.OsVolumeID)
 	}
 
 	// Convert SSH key IDs
