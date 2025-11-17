@@ -82,6 +82,58 @@ cd examples/your-example
 TF_REATTACH_PROVIDERS=... terraform init
 TF_REATTACH_PROVIDERS=... terraform apply
 ```
+
+### Creating a new release
+
+This provider uses [GoReleaser](https://goreleaser.com) to create releases with all required artifacts for the Terraform/OpenTofu registries.
+
+**Prerequisites:**
+- GoReleaser installed (`wget -qO- https://github.com/goreleaser/goreleaser/releases/download/v2.5.1/goreleaser_Linux_x86_64.tar.gz | sudo tar xz -C /usr/local/bin goreleaser`)
+- GitHub CLI authenticated (`gh auth login`)
+- GPG key for signing (public key fingerprint: `E4053F8D0E7C4B9A0A20AB27DC553250F8FE7407`)
+
+**Steps to release:**
+
+1. **Commit any pending changes** (GoReleaser requires a clean git state):
+   ```bash
+   git add .
+   git commit -m "Your changes"
+   git push
+   ```
+
+2. **Create and push a git tag** for the version (e.g., v0.0.4):
+   ```bash
+   git tag -a v0.0.4 -m "Release v0.0.4 - description of changes"
+   git push kdevops v0.0.4
+   ```
+
+3. **Cache your GPG passphrase** (to avoid timeout during signing):
+   ```bash
+   echo "test" | gpg --armor --detach-sign --local-user E4053F8D0E7C4B9A0A20AB27DC553250F8FE7407 --output /tmp/test.sig
+   # Enter your GPG passphrase when prompted - it will be cached for ~2 hours
+   ```
+
+4. **Run GoReleaser** to build and publish the release:
+   ```bash
+   export GPG_FINGERPRINT="E4053F8D0E7C4B9A0A20AB27DC553250F8FE7407"
+   GITHUB_TOKEN=$(gh auth token) goreleaser release --clean
+   ```
+
+This will:
+- Build binaries for all platforms (Linux, macOS, Windows, FreeBSD × amd64, 386, arm, arm64)
+- Create `.zip` archives for each platform
+- Generate `terraform-provider-datacrunch_X.Y.Z_SHA256SUMS` (required by registries)
+- GPG sign the checksums → `terraform-provider-datacrunch_X.Y.Z_SHA256SUMS.sig`
+- Upload all artifacts to GitHub Releases
+- Enable the OpenTofu/Terraform registry bots to detect and index the provider
+
+**Note:** If you get a GPG timeout error, increase the cache timeout:
+```bash
+echo "default-cache-ttl 28800" >> ~/.gnupg/gpg-agent.conf
+echo "max-cache-ttl 28800" >> ~/.gnupg/gpg-agent.conf
+gpgconf --kill gpg-agent
+```
+
 <!-- End SDK Example Usage [usage] -->
 
 
