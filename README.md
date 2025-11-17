@@ -92,7 +92,33 @@ This provider uses [GoReleaser](https://goreleaser.com) to create releases with 
 - GitHub CLI authenticated (`gh auth login`)
 - GPG key for signing (public key fingerprint: `E4053F8D0E7C4B9A0A20AB27DC553250F8FE7407`)
 
-**Steps to release:**
+**Quick release (recommended):**
+
+Simply run `make release` and enter the version when prompted:
+
+```bash
+# Commit all changes first
+git add .
+git commit -m "Your changes"
+git push
+
+# Create release - will prompt for version
+make release
+```
+
+Or specify the version directly:
+
+```bash
+make release VERSION=v0.0.4
+```
+
+The `make release` target will:
+1. Check that git working directory is clean
+2. Create and push the version tag
+3. Cache your GPG passphrase
+4. Run GoReleaser to build and publish
+
+**Manual release steps (if needed):**
 
 1. **Commit any pending changes** (GoReleaser requires a clean git state):
    ```bash
@@ -103,31 +129,29 @@ This provider uses [GoReleaser](https://goreleaser.com) to create releases with 
 
 2. **Create and push a git tag** for the version (e.g., v0.0.4):
    ```bash
-   git tag -a v0.0.4 -m "Release v0.0.4 - description of changes"
+   git tag -a v0.0.4 -m "Release v0.0.4"
    git push kdevops v0.0.4
    ```
 
-3. **Cache your GPG passphrase** (to avoid timeout during signing):
+3. **Cache your GPG passphrase**:
    ```bash
    echo "test" | gpg --armor --detach-sign --local-user E4053F8D0E7C4B9A0A20AB27DC553250F8FE7407 --output /tmp/test.sig
-   # Enter your GPG passphrase when prompted - it will be cached for ~2 hours
    ```
 
-4. **Run GoReleaser** to build and publish the release:
+4. **Run GoReleaser**:
    ```bash
    export GPG_FINGERPRINT="E4053F8D0E7C4B9A0A20AB27DC553250F8FE7407"
    GITHUB_TOKEN=$(gh auth token) goreleaser release --clean
    ```
 
-This will:
-- Build binaries for all platforms (Linux, macOS, Windows, FreeBSD × amd64, 386, arm, arm64)
-- Create `.zip` archives for each platform
-- Generate `terraform-provider-datacrunch_X.Y.Z_SHA256SUMS` (required by registries)
-- GPG sign the checksums → `terraform-provider-datacrunch_X.Y.Z_SHA256SUMS.sig`
-- Upload all artifacts to GitHub Releases
-- Enable the OpenTofu/Terraform registry bots to detect and index the provider
+**What gets created:**
+- Binaries for all platforms (Linux, macOS, Windows, FreeBSD × amd64, 386, arm, arm64)
+- `.zip` archives for each platform
+- `terraform-provider-datacrunch_X.Y.Z_SHA256SUMS` (required by registries)
+- GPG signed checksums → `terraform-provider-datacrunch_X.Y.Z_SHA256SUMS.sig`
+- All artifacts uploaded to GitHub Releases for registry indexing
 
-**Note:** If you get a GPG timeout error, increase the cache timeout:
+**Note:** If you get GPG timeout errors, increase cache timeout:
 ```bash
 echo "default-cache-ttl 28800" >> ~/.gnupg/gpg-agent.conf
 echo "max-cache-ttl 28800" >> ~/.gnupg/gpg-agent.conf
